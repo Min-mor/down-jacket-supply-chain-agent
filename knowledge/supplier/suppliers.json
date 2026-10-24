@@ -1,0 +1,67 @@
+{
+  "knowledge_name": "供应商库",
+  "owner_agent": "supplier_agent",
+  "description": "女装羽绒服相关供应商名录、资质评级、账期、合作状态。仅供应商域使用。",
+  "updated": "2026-10-15",
+  "suppliers": [
+    {
+      "id": "S-001",
+      "name": "杭州织羽纺织有限公司",
+      "category": "面料供应商",
+      "scope": "羽绒面料/胆布/防钻绒面料",
+      "qualification": "五星",
+      "payment_term": 30,
+      "cooperation_status": "合作中"
+    },
+    {
+      "id": "S-002",
+      "name": "安徽暖绒羽绒制品有限公司",
+      "category": "羽绒供应商",
+      "scope": "90白鹅绒/80鸭绒/90鸭绒",
+      "qualification": "五星（附第三方质检报告）",
+      "payment_term": 45,
+      "cooperation_status": "合作中"
+    },
+    {
+      "id": "S-003",
+      "name": "广州顺合辅料有限公司",
+      "category": "辅料供应商",
+      "scope": "拉链/纽扣/织唛/缝纫线",
+      "qualification": "四星",
+      "payment_term": 15,
+      "cooperation_status": "合作中"
+    },
+    {
+      "id": "S-004",
+      "name": "江苏万衣服饰代工厂",
+      "category": "代工厂",
+      "scope": "整衣代工/贴牌生产（ISO9001认证）",
+      "qualification": "四星",
+      "payment_term": 30,
+      "cooperation_status": "合作中"
+    },
+    {
+      "id": "S-005",
+      "name": "浙江普箱包装有限公司",
+      "category": "包装供应商",
+      "scope": "吊牌/包装袋/纸箱/防尘袋",
+      "qualification": "三星",
+      "payment_term": 15,
+      "cooperation_status": "合作中"
+    },
+    {
+      "id": "S-006",
+      "name": "四川川制服装有限公司",
+      "category": "代工厂（备选）",
+      "scope": "整衣代工（备用产能）",
+      "qualification": "三星",
+      "payment_term": 60,
+      "cooperation_status": "备选（账期较长，不推荐优先下单）"
+    }
+  ],
+  "qualification_levels": {
+    "五星": "资质齐全、合作3年以上、质检零缺陷",
+    "四星": "资质齐全、合作1-3年、质检偶有合格偏差",
+    "三星": "资质齐全、新合作或产能波动较大"
+  }
+}

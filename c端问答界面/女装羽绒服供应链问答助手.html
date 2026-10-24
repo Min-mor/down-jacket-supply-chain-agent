@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>羽绒供应链问答助手</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230E1A2B'/%3E%3Cpath d='M18 20l6-7 8 4 8-4 6 7v22c0 2-2 3-4 3H22c-2 0-4-1-4-3z' fill='%23F0A54A'/%3E%3Cpath d='M22 26h20M22 32h20M22 38h20' stroke='%230E1A2B' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg0:#0B1320; --bg1:#0F1B2C; --bg2:#152338; --bg3:#1B2D47;
+  --ink:#EAF2FB; --ink-dim:#A9BBD2; --ink-faint:#7E93AD;
+  --accent:#F0A54A; --accent-deep:#C97F2C;
+  --line:rgba(152,178,210,.14);
+  --c-faq:#F08A5D; --c-product:#F0A54A; --c-procure:#5BA8E8; --c-supplier:#9B8CF0; --c-order:#55C6A6; --c-user:#3D5C8C;
+  --r-lg:18px; --r-md:13px; --r-sm:9px;
+  --shadow:0 10px 30px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,-apple-system,sans-serif;
+  color:var(--ink);
+  background:
+    radial-gradient(1100px 500px at 78% -8%, rgba(60,110,180,.16), transparent 60%),
+    radial-gradient(900px 420px at 8% 108%, rgba(240,165,74,.10), transparent 55%),
+    linear-gradient(160deg, var(--bg1), var(--bg0));
+  background-attachment:fixed;
+  display:flex; flex-direction:column;
+  height:100vh; height:100dvh;
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:rgba(240,165,74,.35)}
+
+/* ===== 顶栏 ===== */
+.topbar{
+  display:flex; align-items:center; gap:12px;
+  padding:14px 18px;
+  border-bottom:1px solid var(--line);
+  background:rgba(11,19,32,.55);
+  backdrop-filter:blur(8px);
+  z-index:5; flex:0 0 auto;
+}
+.brand-mark{flex:0 0 auto; display:grid; place-items:center}
+.brand-mark svg{width:34px;height:34px;filter:drop-shadow(0 4px 10px rgba(240,165,74,.35))}
+.brand-title{line-height:1.15}
+.brand-title b{font-size:17px;letter-spacing:.5px;font-weight:700}
+.brand-title span{display:block;font-size:11px;color:var(--ink-faint);margin-top:2px}
+.brand-dot{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:11px;color:var(--ink-dim)}
+.brand-dot i{width:8px;height:8px;border-radius:50%;background:var(--c-order);box-shadow:0 0 0 4px rgba(85,198,166,.15);animation:pulse 2.4s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(85,198,166,.16)}50%{box-shadow:0 0 0 6px rgba(85,198,166,.05)}}
+
+/* ===== 布局 ===== */
+.layout{flex:1 1 auto; display:flex; min-height:0}
+
+/* 左侧员工栏 */
+.rail{
+  flex:0 0 272px;
+  border-right:1px solid var(--line);
+  padding:16px 14px;
+  display:none;
+  flex-direction:column; gap:10px;
+  overflow-y:auto;
+}
+.rail-head{font-size:11px;color:var(--ink-faint);letter-spacing:1px;padding:0 4px 4px}
+.rail-agent{
+  display:flex; align-items:center; gap:11px;
+  padding:11px 12px; border-radius:var(--r-md);
+  border:1px solid transparent; cursor:pointer;
+  transition:.18s;
+}
+.rail-agent:hover{background:var(--bg2)}
+.rail-agent.active{border-color:var(--line);background:var(--bg2)}
+.rail-agent .dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
+.rail-agent .nm{font-size:13.5px;font-weight:600}
+.rail-agent .rk{font-size:11px;color:var(--ink-faint);margin-top:1px}
+.rail-agent .meta{margin-left:auto;font-size:10px;color:var(--ink-faint);opacity:0;transition:.2s}
+.rail-agent.active .meta{opacity:1}
+.rail-note{margin-top:auto;border:1px solid var(--line);border-radius:var(--r-md);padding:11px 12px;font-size:11.5px;color:var(--ink-dim);line-height:1.6}
+.rail-note b{color:var(--accent)}
+
+/* ===== 聊天区 ===== */
+.chat{flex:1 1 auto; display:flex; flex-direction:column; min-width:0; min-height:0}
+.messages{flex:1 1 auto; overflow-y:auto; padding:18px 16px 12px; scroll-behavior:smooth}
+.messages-inner{max-width:820px; margin:0 auto; display:flex; flex-direction:column; gap:16px}
+
+.msg{display:flex; gap:11px; max-width:88%; animation:rise .28s ease}
+.msg.user{align-self:flex-end; flex-direction:row-reverse}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.msg .avatar{
+  flex:0 0 auto; width:34px;height:34px;border-radius:11px;
+  display:grid;place-items:center;font-size:15px;color:#0B1320;font-weight:700;
+  margin-top:2px;
+}
+.msg.user .avatar{background:var(--c-user);color:#EAF2FB}
+.msg .body{min-width:0}
+.msg .who{font-size:11px;color:var(--ink-faint);margin:0 0 5px 3px;display:flex;align-items:center;gap:6px}
+.msg.user .who{justify-content:flex-end;margin-right:3px}
+.bubble{
+  padding:11px 14px; border-radius:var(--r-md); font-size:14.5px; line-height:1.7;
+  white-space:pre-wrap; word-break:break-word; color:var(--ink);
+  background:var(--bg2); border:1px solid var(--line);
+  box-shadow:var(--shadow);
+}
+.msg.user .bubble{background:linear-gradient(180deg,#27406B,#1F3555);border-color:rgba(90,140,200,.28)}
+.bubble b{color:var(--accent)}
+.bubble .hl{color:var(--accent);font-weight:700}
+
+/* 追问推荐 chips */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chip{
+  font-size:12.5px;color:var(--ink-dim);
+  border:1px solid var(--line);background:rgba(21,35,56,.6);
+  padding:6px 11px;border-radius:999px;cursor:pointer;transition:.16s;
+}
+.chip:hover{color:var(--ink);border-color:var(--accent);background:rgba(240,165,74,.12)}
+
+/* ===== 输入区 ===== */
+.composer{flex:0 0 auto; border-top:1px solid var(--line); padding:12px 16px calc(14px + env(safe-area-inset-bottom))}
+.composer-inner{max-width:820px;margin:0 auto}
+.composer .chips{padding-bottom:2px}
+.composerRow{
+  display:flex; gap:9px; align-items:flex-end;
+  background:var(--bg2); border:1px solid var(--line); border-radius:var(--r-lg);
+  padding:7px 7px 7px 15px; box-shadow:var(--shadow);
+}
+.composerRow:focus-within{border-color:rgba(240,165,74,.55)}
+.composerRow textarea{
+  flex:1 1 auto; resize:none; border:none; outline:none; background:transparent;
+  color:var(--ink); font-size:16px; line-height:1.5; min-height:24px; max-height:120px;
+  font-family:inherit; padding:6px 0;
+}
+.composerRow textarea::placeholder{color:var(--ink-faint)}
+.send-btn{
+  flex:0 0 auto; width:42px;height:42px;border-radius:13px;border:none;cursor:pointer;
+  background:linear-gradient(160deg,var(--accent),var(--accent-deep));color:#0B1320;
+  display:grid;place-items:center;transition:.16s;
+}
+.send-btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.send-btn:active{transform:translateY(0)}
+.send-btn svg{width:19px;height:19px}
+
+/* 欢迎卡 */
+.welcome .bubble{background:linear-gradient(165deg, rgba(27,45,71,.92), rgba(21,35,56,.92))}
+.welcome .intro{font-size:14px;line-height:1.7;margin-bottom:4px}
+.welcome .intro b{color:var(--accent)}
+.welcome .group{display:grid;grid-template-columns:1fr;gap:9px;margin-top:12px}
+.wel-item{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;cursor:pointer;transition:.16s;background:rgba(15,27,44,.5)}
+.wel-item:hover{border-color:var(--accent);transform:translateY(-1px)}
+.wel-item .tag{flex:0 0 auto;font-size:11px;font-weight:700;color:#0B1320;padding:3px 8px;border-radius:7px;margin-top:2px}
+.wel-item .tt{font-size:13px;font-weight:600}
+.wel-item .ex{font-size:11.5px;color:var(--ink-faint);margin-top:3px;line-height:1.55}
+
+/* 底部版权 */
+.foot{flex:0 0 auto;text-align:center;font-size:10.5px;color:var(--ink-faint);padding:6px 16px 10px;opacity:.85}
+
+/* ===== 响应式 ===== */
+@media (min-width:900px){
+  .rail{display:flex}
+  .messages-inner{max-width:860px}
+  .msg{max-width:76%}
+  .welcome .group{grid-template-columns:1fr 1fr}
+}
+@media (max-width:560px){
+  .msg{max-width:94%}
+  .brand-dot{display:none}
+  .welcome .group{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand-mark">
+    <svg viewBox="0 0 64 64" width="34" height="34" aria-hidden="true">
+      <rect width="64" height="64" rx="14" fill="#152338"/>
+      <path d="M18 20l6-7 8 4 8-4 6 7v22c0 2-2 3-4 3H22c-2 0-4-1-4-3z" fill="#F0A54A"/>
+      <path d="M22 26h20M22 32h20M22 38h20" stroke="#152338" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+  </div>
+  <div class="brand-title">
+    <b>羽绒供应链问答助手</b>
+    <span>女装羽绒服 · 多 Agent 协同 · FAQ / 采购制度</span>
+  </div>
+  <div class="brand-dot"><i></i>5 位员工在线</div>
+</header>
+
+<div class="layout">
+  <aside class="rail" id="rail">
+    <div class="rail-head">在线的员工（Agent）</div>
+    <div id="railAgents"></div>
+    <div class="rail-note">
+      每位员工<b>只负责自己的知识域</b>，知识库相互隔离、不交叉污染。回答后点击下方追问，可一路深入。
+    </div>
+  </aside>
+
+  <main class="chat">
+    <div class="messages" id="messages">
+      <div class="messages-inner" id="messagesInner"></div>
+    </div>
+    <div class="composer">
+      <div class="composer-inner">
+        <div class="chips" id="suggestChips"></div>
+        <div class="composerRow">
+          <textarea id="input" rows="1" placeholder="例如：DJ-2601 批发价多少"></textarea>
+          <button class="send-btn" id="send" aria-label="发送">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3.5 12l16-7.5-5 16-3.5-6.5L3.5 12z" fill="#0B1320"/><path d="M11 14l8.5-9.5" stroke="#0B1320" stroke-width="1.6"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="foot">演示界面 · 内置示例数据（款号/价格/库存均为编造） · 逻辑对应后端 LangGraph 工作流</div>
+
+<script>
+"use strict";
+/* =========================================================
+   知识库（与后端 knowledge/ 目录数据一致，浏览器内联）
+   ========================================================= */
+const AGENTS = {
+  faq:        {id:'faq',        name:'客服FAQ助手',   role:'售前售后咨询',      color:'#F08A5D', icon:'答'},
+  product:    {id:'product',    name:'商品价格库存助手', role:'款式/价格/库存',  color:'#F0A54A', icon:'价'},
+  procurement:{id:'procurement',name:'采购制度助手',  role:'流程/审批/付款',     color:'#5BA8E8', icon:'购'},
+  supplier:   {id:'supplier',   name:'供应商管理助手', role:'名录/资质',         color:'#9B8CF0', icon:'供'},
+  order:      {id:'order',      name:'下单审批助手',  role:'采购单/审批流',      color:'#55C6A6', icon:'单'},
+};
+
+const PRODUCTS = [
+  {style_no:'DJ-2601',name:'女士长款白鹅绒羽绒服',category:'长款',fill_power:'250g 90白鹅绒',down_content:'90%',sizes:['S','M','L','XL','XXL'],cost_price:260,wholesale_price:360,retail_price:599,stock:1200,warehouse:'华东仓',status:'在售'},
+  {style_no:'DJ-2602',name:'女士短款立领鸭绒服',category:'短款',fill_power:'150g 80鸭绒',down_content:'80%',sizes:['XS','S','M','L','XL'],cost_price:180,wholesale_price:255,retail_price:399,stock:860,warehouse:'华南仓',status:'在售'},
+  {style_no:'DJ-2603',name:'女士中长款连帽轻暖羽绒服',category:'中长款',fill_power:'200g 90白鸭绒',down_content:'90%',sizes:['S','M','L','XL'],cost_price:210,wholesale_price:298,retail_price:459,stock:650,warehouse:'华北仓',status:'在售'},
+  {style_no:'DJ-2604',name:'女士廓形宽松面包服',category:'廓形款',fill_power:'280g 95白鹅绒',down_content:'95%',sizes:['M','L','XL','2XL'],cost_price:320,wholesale_price:430,retail_price:699,stock:420,warehouse:'华东仓',status:'在售'},
+  {style_no:'DJ-2605',name:'女士修身收腰羽绒服',category:'修身款',fill_power:'220g 90白鹅绒',down_content:'90%',sizes:['S','M','L'],cost_price:285,wholesale_price:390,retail_price:629,stock:980,warehouse:'华南仓',status:'在售'},
+  {style_no:'DJ-2606',name:'女士派克服工装羽绒服',category:'工装款',fill_power:'260g 85鸭绒',down_content:'85%',sizes:['M','L','XL','2XL','3XL'],cost_price:300,wholesale_price:405,retail_price:659,stock:310,warehouse:'华北仓',status:'在售'},
+  {style_no:'DJ-2607',name:'女士轻薄便携羽绒服',category:'轻薄款',fill_power:'90g 90鸭绒',down_content:'90%',sizes:['XS','S','M','L','XL'],cost_price:120,wholesale_price:175,retail_price:299,stock:1500,warehouse:'华南仓',status:'在售'},
+  {style_no:'DJ-2608',name:'女士渐变色长款羽绒服',category:'长款',fill_power:'240g 90白鹅绒',down_content:'90%',sizes:['S','M','L','XL','XXL'],cost_price:275,wholesale_price:375,retail_price:579,stock:540,warehouse:'华东仓',status:'在售'},
+  {style_no:'DJ-2609',name:'女士法式连帽过膝羽绒服',category:'长款',fill_power:'300g 95白鹅绒',down_content:'95%',sizes:['M','L','XL','2XL'],cost_price:350,wholesale_price:470,retail_price:799,stock:280,warehouse:'华北仓',status:'在售'},
+  {style_no:'DJ-2610',name:'女士儿童亲子羽绒服',category:'童装款',fill_power:'130g 80鸭绒',down_content:'80%',sizes:['110','120','130','140','150'],cost_price:150,wholesale_price:215,retail_price:339,stock:720,warehouse:'华南仓',status:'在售'},
+];
+
+const FAQS = [
+  {question:'尺码怎么选？',category:'尺码',answer:'参考身高体重推荐：S码适合155-160cm/45-52kg，M码适合160-165cm/50-57kg，L码适合165-170cm/55-62kg，XL适合170-175cm/60-68kg。宽松款可选小一码，修身款建议按标准码。'},
+  {question:'充绒量是什么意思？决定保暖吗？',category:'充绒量/保暖',answer:'充绒量指羽绒服内填充羽绒的重量（克），直接决定保暖程度。一般南方冬天150-200g足够，北方寒冷地区建议250g以上。绒子含量越高（如90%、95%）保暖性越好、越轻盈。'},
+  {question:'羽绒服怎么清洗保养？',category:'清洗保养',answer:'建议手洗或送专业干洗，不可机洗、不可拧干。使用中性洗涤剂，阴凉处悬挂晾干，避免暴晒。收纳前彻底晾干并放防潮袋，避免重压导致绒结块。'},
+  {question:'发货时效是多久？',category:'发货',answer:'现货款付款后48小时内发货；预售款按页面标注7-15天发货。大促期间可能顺延1-2天，具体以订单页为准。'},
+  {question:'退换货政策是什么？',category:'退换货',answer:'支持7天无理由退换（吊牌完好、不影响二次销售）。因尺码不合适可免费换货一次，运费由我方承担。定制款、特价款不支持无理由退换。'},
+  {question:'出现起球、钻绒等质量问题怎么办？',category:'售后',answer:'如出现明显钻绒、起球、走线质量问题，属于质量问题的可免费退换，并承担来回运费。请在签收后7天内联系客服并提供照片。'},
+  {question:'能加绒加厚定制吗？可以企业批量采购吗？',category:'定制/团购',answer:'支持企业工服、团购定制，可定制logo、颜色和充绒量。批量采购价格与起订量请咨询采购制度或下单流程。'},
+  {question:'羽绒服跑绒正常吗？',category:'售后/品质',answer:'少量浮绒是正常现象，穿着摩擦后少量绒丝外露属于正常；若持续大量钻绒则属于质量问题，可走售后免费退换。'},
+];
+
+const SUPPLIERS = [
+  {id:'S-001',name:'杭州织羽纺织有限公司',category:'面料供应商',scope:'羽绒面料/胆布/防钻绒面料',qualification:'五星',payment_term:30,status:'合作中'},
+  {id:'S-002',name:'安徽暖绒羽绒制品有限公司',category:'羽绒供应商',scope:'90白鹅绒/80鸭绒/90鸭绒',qualification:'五星（附第三方质检报告）',payment_term:45,status:'合作中'},
+  {id:'S-003',name:'广州顺合辅料有限公司',category:'辅料供应商',scope:'拉链/纽扣/织唛/缝纫线',qualification:'四星',payment_term:15,status:'合作中'},
+  {id:'S-004',name:'江苏万衣服饰代工厂',category:'代工厂',scope:'整衣代工/贴牌生产（ISO9001认证）',qualification:'四星',payment_term:30,status:'合作中'},
+  {id:'S-005',name:'浙江普箱包装有限公司',category:'包装供应商',scope:'吊牌/包装袋/纸箱/防尘袋',qualification:'三星',payment_term:15,status:'合作中'},
+  {id:'S-006',name:'四川川制服装有限公司',category:'代工厂（备选）',scope:'整衣代工（备用产能）',qualification:'三星',payment_term:60,status:'备选（账期较长，不推荐优先下单）'},
+];
+
+const PROC = {
+  flow:['需求提出（业务/门店发起采购需求）','填写采购申请单（含款号、数量、预计单价、到货要求）','部门主管审批','财务预算审核（核对采购预算额度）','采购执行（向供应商下达采购单）','到货验收（质检核对数量与品质）','入库登记','对账（与供应商核对采购单与送货单）','付款（按付款制度结算）'],
+  approval:[{lo:0,hi:10000,who:'采购主管',note:'单笔 1 万元以内'},{lo:10000,hi:50000,who:'部门经理',note:'单笔 1 万～5 万元'},{lo:50000,hi:200000,who:'总监',note:'单笔 5 万～20 万元'},{lo:200000,hi:null,who:'总经理',note:'单笔 20 万元以上'}],
+  payment:{regular:'首付 30% 定金，尾款 70% 在货到验收后 30 天内支付',newSupplier:'新供应商首单需全款预付，无账期',overdue:'逾期付款按日 0.05% 支付违约金'},
+  minOrder:200,
+  discount:[{qty:500,d:'95折',n:'500 件及以上'},{qty:1000,d:'9折',n:'1000 件及以上'},{qty:5000,d:'85折',n:'5000 件及以上'}],
+  rebate:{threshold:1000000,rate:'2%',note:'年度累计采购达 100 万元返利 2%'},
+};
+
+const ORDER_RULES = [
+  {id:'ORD-001',rule:'采购单生成要求',detail:'采购单必须包含：款号、数量、尺码分布、供应商、采购单价、预计到货日期、采购申请人。信息不全会退回补充。'},
+  {id:'ORD-002',rule:'审批流程',detail:'采购单提交后按金额分级审批（见采购制度-审批权限），审批通过后自动生成正式采购合同并发往供应商。'},
+  {id:'ORD-003',rule:'加急处理',detail:'加急采购需在采购单备注“加急”，并由采购主管单独审批；加急单优先排产，到货时效缩短至3-5天。'},
+  {id:'ORD-004',rule:'订单修改与取消',detail:'未审批的采购单可自行修改或取消；已审批的采购单如需变更，须走变更流程并重新审批，且不得晚于供应商排产前48小时。'},
+  {id:'ORD-005',rule:'到货确认',detail:'供应商发货后需上传物流单号，仓库到货验收后，采购单状态自动流转为“已入库”，进入对账付款环节。'},
+];
+
+/* 追问推荐池（按域隔离，不跨域） */
+const SUGGEST = {
+  faq:{尺码:['这件衣服偏大还是偏小？','身高170应该选什么码？','退换货可以免费换码吗？'],充绒量:['北方冬天穿多少克充绒量合适？','90绒和95绒保暖差多少？','轻薄款能过冬吗？'],清洗:['可以机洗吗？','洗后绒结块怎么办？','如何正确晾干收纳？'],发货:['现货多久发货？','预售款要等多久？','发货后几天能到？'],退换货:['哪些情况可以免费退换？','定制款能退吗？','退换货运费谁承担？'],售后:['钻绒属于质量问题吗？','质量问题怎么申请退换？','起球了可以售后吗？'],默认:['尺码怎么选？','羽绒服怎么清洗保养？','退换货政策是什么？']},
+  product:{价格:['这款的批发价还能优惠吗？','批量采购有折扣吗？','哪些款成本价最低？'],库存:['这款库存还有多少？','哪个仓库有现货？','补货需要多久？'],长款:['长款羽绒服有哪些？','白鹅绒的款有哪些？','最保暖的是哪一款？'],默认:['查一下 DJ-2601 的批发价和库存','有哪些轻薄款？','哪个款成本价最低？']},
+  procurement:{审批:['采购5万元需要谁审批？','审批流程分几步？','超过20万怎么办？'],付款:['新供应商怎么付款？','老供应商付款账期多久？','逾期付款有违约金吗？'],折扣:['采购1000件打几折？','起订量是多少？','年度返利怎么算？'],默认:['完整采购流程是什么？','不同金额的审批权限？','付款和折扣制度？']},
+  supplier:{羽绒:['羽绒供应商有哪些？','羽绒供应商资质怎么样？','还有别的羽绒供应商吗？'],面料:['面料供应商有哪些？','胆布防钻绒面料找谁？','面料供应商账期多久？'],资质:['资质评级标准是什么？','五星供应商有哪些？','备选代工厂是哪家？'],默认:['有哪些供应商？','供应商资质怎么分？','羽绒供应商是哪家？']},
+  order:{采购单:['采购单要填哪些信息？','下单后多久审批完？','怎么提交采购单？'],加急:['怎么申请加急？','加急多久能到货？','加急需要谁审批？'],修改:['已审批的单能改吗？','怎么取消采购单？','到货确认流程？'],默认:['采购单要填哪些信息？','加急怎么申请？','订单能修改或取消吗？']},
+};
+
+/* =========================================================
+   路由 —— 强信号词优先 + 关键词打分（与 graph.py 一致）
+   ========================================================= */
+const STRONG = {供应商:'supplier',采购单:'order',下单:'order',加急:'order',取消采购:'order',审批流:'order'};
+const KW = {
+  faq:['尺码','清洗','保养','发货','退换','售后','钻绒','质量问题','怎么选'],
+  product:['价格','成本','批发','库存','仓库','款式','DJ-','羽绒','充绒','在售','鹅绒','鸭绒','长款','短款','面包服','派克服','轻暖','保暖','轻薄'],
+  procurement:['采购','审批','付款','折扣','返利','起订','流程','账期','制度'],
+  supplier:['供应商','资质','代工','面料','辅料','账期','合作'],
+  order:['下单','采购单','加急','修改','取消','审批流','提交'],
+};
+function route(q){
+  for(const k in STRONG){ if(q.includes(k)) return STRONG[k]; }
+  const scores={}; let best='faq',bestScore=0;
+  for(const z in KW){ let s=0; for(const k of KW[z]){ if(q.includes(k)) s++; } scores[z]=s; if(s>bestScore){bestScore=s;best=z;} }
+  return bestScore>0?best:'faq';
+}
+const STOPWORDS=new Set(['怎么','什么','的','了','吗','呢','吧','啊','应该','可以','请问','我','你','他','一下','这个','那个','是','有','没有','如何','是否','为什么','多少','能不能','给','要','会','就','才','都','还','在']);
+function faqScore(q,f){ const text=f.question+(f.category||'')+f.answer; let s=0; for(const p of q.split(/[\s，。？！、,.!?：:；;()（）"“”]+/)){ if(!p)continue; for(const L of [3,2]){ for(let i=0;i<=p.length-L;i++){ const sub=p.slice(i,i+L); if(STOPWORDS.has(sub))continue; if(text.includes(sub))s++; } } } return s; }
+function fmtProduct(p){ return p.style_no+' '+p.name+'（'+p.category+'，充绒 '+p.fill_power+'，绒子含量 '+p.down_content+'，尺码 '+p.sizes.join(',')+'）\n成本价 ¥'+p.cost_price+' | 批发价 ¥'+p.wholesale_price+' | 零售价 ¥'+p.retail_price+' | 库存 '+p.stock+' 件 | '+p.warehouse+' | '+p.status; }
+function fmtSupplier(s){ return s.id+' '+s.name+'（'+s.category+'）\n供应范围：'+s.scope+' | 资质：'+s.qualification+' | 账期：'+s.payment_term+' 天 | '+s.status; }
+function styleOf(q){ const m=q.toUpperCase().match(/DJ-\d+/); return m?m[0]:null; }
+
+/* =========================================================
+   各 Agent 派发（与 tools.py / agent_defs.py 一致）
+   ========================================================= */
+function dispatch(zone, q){
+  const r={answer:'',key:'默认'};
+  if(zone==='faq'){
+    const scored=FAQS.map(f=>({s:faqScore(q,f),f})).sort((a,b)=>b.s-a.s).filter(x=>x.s>0).slice(0,2);
+    r.answer = scored.length ? scored.map(x=>'Q：'+x.f.question+'\nA：'+x.f.answer).join('\n\n') : 'FAQ 库未找到直接相关的问题，可咨询分类：尺码 / 充绒量保暖 / 清洗保养 / 发货 / 退换货 / 售后。';
+    r.key = KW.faq.find(k=>q.includes(k)) || '默认';
+  }
+  else if(zone==='product'){
+    if(/最低|最便宜|性价比/.test(q)){ const p=PRODUCTS.reduce((a,b)=>a.cost_price<b.cost_price?a:b); r.answer=fmtProduct(p)+'\n（成本价最低款）'; r.key='价格'; }
+    else if(/最高|最贵/.test(q)){ const p=PRODUCTS.reduce((a,b)=>a.retail_price>b.retail_price?a:b); r.answer=fmtProduct(p)+'\n（零售价最高款）'; r.key='价格'; }
+    else if(/库存|还有多少|仓库/.test(q)){ const no=styleOf(q); const p=PRODUCTS.find(x=>x.style_no===no); r.answer = p? p.style_no+' '+p.name+'：库存 '+p.stock+' 件，存放于 '+p.warehouse+'（'+p.status+'）。' : '未找到款式编号 '+no+'。'; r.key='库存'; }
+    else if(/批发|成本|价格|报价|多少钱/.test(q)){ const no=styleOf(q); const p=PRODUCTS.find(x=>x.style_no===no); r.answer = p? p.style_no+' '+p.name+'：成本价 ¥'+p.cost_price+'，批发价 ¥'+p.wholesale_price+'，建议零售价 ¥'+p.retail_price+'。' : '未找到款式编号 '+no+'。'; r.key='价格'; }
+    else if(/DJ-\d+/i.test(q)){ const no=styleOf(q); const p=PRODUCTS.find(x=>x.style_no===no); r.answer = p? fmtProduct(p) : '未找到款式编号 '+no+'。'; r.key='默认'; }
+    else { const kw=KW.product.find(k=>q.includes(k))||'默认'; const hits=PRODUCTS.filter(p=>p.name.includes(kw)||p.category.includes(kw)||p.fill_power.includes(kw)); r.answer = hits.length? hits.map(fmtProduct).join('\n') : '未找到与“'+kw+'”匹配的款式。可搜索：长款/短款/白鹅绒/鸭绒/轻薄/派克服/面包服。'; r.key = (kw==='长款'||kw==='鹅绒'||kw==='短款')?'长款':'默认'; }
+  }
+  else if(zone==='procurement'){
+    if(/审批|金额|权限|谁批/.test(q)){ const amt=parseAmount(q); const rule=PROC.approval.find(x=>amt>=x.lo&&(x.hi===null||amt<=x.hi)); r.answer= rule? '单笔采购金额 ¥'+amt.toLocaleString()+'：需由【'+rule.who+'】审批（'+rule.note+'）。' : '金额超出审批规则范围。'; r.key='审批'; }
+    else if(/付款|账期|定金|尾款/.test(q)){ r.answer = q.includes('新供应商')? '新供应商付款：'+PROC.payment.newSupplier : '常规付款：'+PROC.payment.regular+'\n逾期罚则：'+PROC.payment.overdue; r.key='付款'; }
+    else if(/折扣|几折|件/.test(q)){ const qty=extractInt(q)||1000; const d=PROC.discount.filter(x=>qty>=x.qty).slice(-1)[0]; r.answer='起订量：'+PROC.minOrder+' 件/SKU。\n'+(d? '单次采购 '+qty+' 件，可享【'+d.d+'】（'+d.n+'）。' : '单次采购 '+qty+' 件未达 500 件折扣档，按标准批发价结算。'); r.key='折扣'; }
+    else if(/返利|返点/.test(q)){ r.answer='年度返利：同一客户年度累计采购达 ¥'+PROC.rebate.threshold.toLocaleString()+' 返利 '+PROC.rebate.rate+'（'+PROC.rebate.note+'）。'; r.key='折扣'; }
+    else { r.answer='采购流程：\n'+PROC.flow.map((s,i)=>(i+1)+'. '+s).join('\n'); r.key='默认'; }
+  }
+  else if(zone==='supplier'){
+    if(/资质/.test(q)&&(/标准|评级|怎么分/.test(q))){ r.answer='资质评级标准：\n五星：资质齐全、合作3年以上、质检零缺陷\n四星：资质齐全、合作1-3年、质检偶有合格偏差\n三星：资质齐全、新合作或产能波动较大'; r.key='资质'; }
+    else { const byName=SUPPLIERS.find(s=>q.includes(s.name)); 
+      if(byName){ r.answer=fmtSupplier(byName); r.key='默认'; }
+      else { const cat=['羽绒供应商','面料供应商','辅料供应商','代工厂','包装供应商','羽绒','面料','辅料','代工','包装'].find(c=>q.includes(c)); 
+        const list= cat? SUPPLIERS.filter(s=>s.category.includes(cat)||s.scope.includes(cat)) : SUPPLIERS;
+        r.answer= list.length? list.map(fmtSupplier).join('\n') : '未找到该类别供应商。';
+        r.key = /羽绒/.test(q)?'羽绒':(/面料/.test(q)?'面料':'默认'); }
+    }
+  }
+  else if(zone==='order'){
+    if(/所有|全部|有哪些/.test(q)){ r.answer=ORDER_RULES.map(x=>x.id+' '+x.rule+'：'+x.detail).join('\n'); r.key='默认'; }
+    else { const kw=['加急','修改','取消','采购单','审批','到货','提交'].find(k=>q.includes(k))||'采购单'; const hits=ORDER_RULES.filter(x=>x.rule.includes(kw)||x.detail.includes(kw)); r.answer=hits.length? hits.map(x=>x.id+' '+x.rule+'：'+x.detail).join('\n') : '未找到相关下单规则。可查：采购单/审批/加急/修改/取消/到货。'; r.key= kw==='加急'?'加急':(kw==='修改'||kw==='取消')?'修改':'采购单'; }
+  }
+  return r;
+}
+function parseAmount(q){ let m=q.match(/\d+(?:\.\d+)?/); if(!m) return 10000; let v=parseFloat(m[0]); if(q.includes('万'))v*=10000; else if(q.includes('千'))v*=1000; return v; }
+function extractInt(q){ let m=q.match(/\d+/); return m?parseInt(m[0]):null; }
+function suggest(zone,key){ const pool=SUGGEST[zone]; return (pool[key]||pool['默认']).slice(0,3); }
+
+/* =========================================================
+   渲染
+   ========================================================= */
+const $inner=document.getElementById('messagesInner');
+const $chips=document.getElementById('suggestChips');
+const $input=document.getElementById('input');
+const $send=document.getElementById('send');
+let lastSuggest=[];
+
+function scrollBottom(){ const m=document.getElementById('messages'); m.scrollTop=m.scrollHeight; }
+
+function addMsg(role, agentId, text, sugg){
+  const a=AGENTS[agentId];
+  const el=document.createElement('div');
+  el.className='msg '+role;
+  const avatar= role==='user'? '<div class="avatar" style="background:'+AGENTS[agentId].color+'">你</div>'
+    : '<div class="avatar" style="background:'+a.color+'">'+a.icon+'</div>';
+  let chips='';
+  if(sugg&&sugg.length){
+    chips='<div class="chips">'+sugg.map((s,i)=>'<button class="chip" data-q="'+s.replace(/"/g,'&quot;')+'">'+(i+1)+'. '+s+'</button>').join('')+'</div>';
+  }
+  el.innerHTML=avatar+'<div class="body"><div class="who">'+(role==='user'?'我':'· '+a.name+' · '+a.role)+'</div><div class="bubble">'+text.replace(/</g,'&lt;')+'</div>'+chips+'</div>';
+  $inner.appendChild(el);
+  scrollBottom();
+}
+
+function welcome(){
+  const a=AGENTS['faq'];
+  const groups=[
+    {z:'faq',t:'客服FAQ助手',c:'售前售后',ex:'尺码怎么选 / 羽绒服怎么清洗 / 退换货政策'},
+    {z:'product',t:'商品价格库存助手',c:'价格/库存',ex:'DJ-2601 批发价多少 / 有哪些白鹅绒长款'},
+    {z:'procurement',t:'采购制度助手',c:'采购制度',ex:'采购流程 / 采购5万谁审批 / 付款折扣'},
+    {z:'supplier',t:'供应商管理助手',c:'供应商',ex:'羽绒供应商有哪些 / 资质怎么分'},
+    {z:'order',t:'下单审批助手',c:'下单审批',ex:'采购单要填什么 / 加急怎么申请'},
+  ];
+  let items=groups.map(g=>{
+    const ag=AGENTS[g.z];
+    return '<div class="wel-item" data-q="'+g.ex.split(' / ')[0]+'"><span class="tag" style="background:'+ag.color+'">'+g.c+'</span><div><div class="tt">'+g.t+'</div><div class="ex">'+g.ex+'</div></div></div>';
+  }).join('');
+  const el=document.createElement('div');
+  el.className='msg welcome';
+  el.innerHTML='<div class="avatar" style="background:'+a.color+'">'+a.icon+'</div><div class="body"><div class="who">· '+a.name+'</div><div class="bubble"><div class="intro">你好，我是<b>羽绒供应链问答助手</b>。系统由 5 位员工分工协作，每位只负责自己的知识域、互不交叉。你可以这样问：</div><div class="group">'+items+'</div><div class="chips" style="margin-top:12px"><button class="chip" data-q="羽绒服怎么清洗保养？">羽绒服怎么洗</button><button class="chip" data-q="DJ-2601 批发价多少">DJ-2601 批发价</button><button class="chip" data-q="采购流程是什么">采购流程</button></div></div></div>';
+  $inner.appendChild(el);
+  scrollBottom();
+}
+
+function ask(q){
+  q=q.trim(); if(!q) return;
+  lastSuggest=[];
+  $chips.innerHTML='';
+  addMsg('user', route(q), q);
+  const zone=route(q);
+  const res=dispatch(zone,q);
+  lastSuggest=suggest(zone,res.key);
+  addMsg('agent', zone, res.answer, lastSuggest);
+  $input.value=''; autoGrow();
+  setActive(zone);
+}
+function setActive(zone){ document.querySelectorAll('.rail-agent').forEach(n=>n.classList.toggle('active',n.dataset.z===zone)); }
+
+function autoGrow(){ $input.style.height='auto'; $input.style.height=Math.min($input.scrollHeight,120)+'px'; }
+
+/* 事件 */
+$send.addEventListener('click',()=>ask($input.value));
+$input.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); ask($input.value); } });
+$input.addEventListener('input',autoGrow);
+$inner.addEventListener('click',e=>{ const c=e.target.closest('[data-q]'); if(c) ask(c.getAttribute('data-q')); });
+$chips.addEventListener('click',e=>{ const c=e.target.closest('[data-q]'); if(c) ask(c.getAttribute('data-q')); });
+
+/* 员工栏渲染 */
+(function(){
+  const rail=document.getElementById('railAgents');
+  rail.innerHTML=Object.values(AGENTS).map(a=>'<div class="rail-agent" data-z="'+a.id+'"><span class="dot" style="background:'+a.color+'"></span><div><div class="nm">'+a.name+'</div><div class="rk">'+a.role+'</div></div><span class="meta">负责</span></div>').join('');
+  rail.querySelectorAll('.rail-agent').forEach(n=>n.addEventListener('click',()=>{ ask(n.dataset.z==='product'?'有哪些轻薄款？':'尺码怎么选？'); }));
+})();
+
+welcome();
+</script>
+</body>
+</html>

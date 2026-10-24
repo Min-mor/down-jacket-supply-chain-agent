@@ -1,0 +1,47 @@
+{
+  "knowledge_name": "采购制度库",
+  "owner_agent": "procurement_agent",
+  "description": "女装羽绒服采购流程、审批权限、付款、起订量、折扣、返利等制度。仅采购域使用。",
+  "updated": "2026-10-18",
+  "procurement_flow": [
+    "需求提出（业务/门店发起采购需求）",
+    "填写采购申请单（含款号、数量、预计单价、到货要求）",
+    "部门主管审批",
+    "财务预算审核（核对采购预算额度）",
+    "采购执行（向供应商下达采购单）",
+    "到货验收（质检核对数量与品质）",
+    "入库登记",
+    "对账（与供应商核对采购单与送货单）",
+    "付款（按付款制度结算）"
+  ],
+  "approval_rules": [
+    { "min_amount": 0, "max_amount": 10000, "approver": "采购主管", "note": "单笔采购金额 1 万元以内" },
+    { "min_amount": 10000, "max_amount": 50000, "approver": "部门经理", "note": "单笔采购金额 1 万～5 万元" },
+    { "min_amount": 50000, "max_amount": 200000, "approver": "总监", "note": "单笔采购金额 5 万～20 万元" },
+    { "min_amount": 200000, "max_amount": null, "approver": "总经理", "note": "单笔采购金额 20 万元以上" }
+  ],
+  "payment_rules": {
+    "regular": "首付 30% 定金，尾款 70% 在货到验收后 30 天内支付",
+    "new_supplier": "新供应商首单需全款预付，无账期",
+    "overdue_penalty": "逾期付款按日 0.05% 支付违约金"
+  },
+  "minimum_order": {
+    "per_sku": 200,
+    "unit": "件",
+    "note": "单个款式每个 SKU（尺码）最低起订 200 件"
+  },
+  "discount_rules": [
+    { "quantity": 500, "discount": "95折", "note": "单次采购 500 件及以上" },
+    { "quantity": 1000, "discount": "9折", "note": "单次采购 1000 件及以上" },
+    { "quantity": 5000, "discount": "85折", "note": "单次采购 5000 件及以上" }
+  ],
+  "rebate_rules": {
+    "annual_threshold": 1000000,
+    "rebate_rate": "2%",
+    "note": "同一客户年度累计采购金额达到 100 万元，返利 2%"
+  },
+  "price_protection": {
+    "window_days": 30,
+    "note": "采购后 30 天内若同款下调批发价，可申请差价返还"
+  }
+}
