@@ -35,8 +35,11 @@ WELCOME = r"""
 
 
 def main() -> None:
-    app, agents = build_graph()
+    from llm import get_llm
+    app, agents, llm = build_graph()
+    mode = "LLM 模式（DeepSeek，真 tool calling）" if llm is not None else "规则模式（未配置 DEEPSEEK_API_KEY，可离线运行）"
     print(WELCOME)
+    print(f"◆ 当前运行模式：{mode}\n")
 
     history: list[tuple[str, str]] = []
     last_suggestions: list[str] = []

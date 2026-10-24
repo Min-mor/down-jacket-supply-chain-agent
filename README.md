@@ -96,23 +96,48 @@ python tests/test_workflow.py
 5~20万→总监、20万以上→总经理）；常规付款首付30%定金、尾款70%货到验收后30天；
 起订 200 件/SKU；500 件 95 折、1000 件 9 折、5000 件 85 折；年度累计 100 万返利 2%。
 
-## 6. 设计说明与技术要点
+## 6. LLM 增强模式（DeepSeek · 真 tool calling）
+
+当前工程支持两种运行模式，**未配置 Key 也能跑**：
+
+| 模式 | 触发条件 | 路由 | Agent 执行 |
+|---|---|---|---|
+| 规则模式（默认，可离线） | 未设 `DEEPSEEK_API_KEY` | 关键词打分 + 强信号词 | 确定性 dispatch（@tool 协议） |
+| LLM 模式（真智能体） | 设置了 `DEEPSEEK_API_KEY` | LLM 意图分类（`with_structured_output`） | `create_agent` 工具调用图（LLM 决定调哪个工具 → ToolNode 执行 → 生成回答） |
+
+启用 LLM 模式：
+
+```bash
+# 方法一：环境变量
+export DEEPSEEK_API_KEY=sk-xxx        # 从 https://platform.deepseek.com 获取
+python main.py
+
+# 方法二：复制示例配置再填
+cp .env.example .env                  # 在 .env 里填 DEEPSEEK_API_KEY，然后：
+# 需先安装依赖，并可用 python-dotenv 自动加载 .env（或手动 export）
+pip install -r requirements.txt
+```
+
+`llm.py` 负责读环境变量并创建 `ChatOpenAI`（DeepSeek 为 OpenAI 兼容接口）。`.env` 已加入
+`.gitignore`，不会把 Key 提交到仓库。两种模式下，5 个 Agent 的知识隔离与追问推荐机制
+保持一致。
+
+## 7. 设计说明与技术要点
 
 - **编排层**：`graph.py` 用 LangGraph `StateGraph` 构建，`router` 节点做条件路由到
   5 个 Agent 节点，每个节点输出 `answer` + `matched_key` + `suggestions`。
-- **工具协议**：每个 Agent 的能力用 `@tool` 声明（如 `get_price`、`get_approval_rule`），
-  由 `agent.tool_map` 按意图派发，符合 LangChain 工具调用协议。
+- **路由**：配置 Key 时优先用 LLM `with_structured_output` 做意图分类，解析失败/未配置
+  时自动降级到「强信号词 + 关键词打分」，保证始终可用。
+- **工具调用**：配置 Key 时每个 Agent 用 `create_agent(model, agent.tools)` 构建工具调用图
+  （ReAct 循环 + ToolNode）；未配置时用确定性 dispatch。两种路径都走 LangChain `@tool` 协议。
+- **知识隔离**：无论 LLM 还是规则模式，5 个 Agent 各自绑定独立 KnowledgeBase，工具层
+  只能访问自己分区的数据，不交叉污染。
 - **中文检索**：FAQ 采用中文 2~3 字子串打分匹配，保证"身高170怎么选码"这类
   口语追问也能命中答案。
-- **路由策略**：先匹配高区分度强信号词（供应商/采购单/加急…），再按各域关键词打分，
-  无命中时落到 FAQ 兜底。
-- **生产化说明**：本工程为可离线运行的确定性演示。生产环境可将 `route_question`
-  替换为 LLM 意图分类（如 `ChatOpenAI`），并让 Agent 内部用 `ReAct + ToolNode`
-  自主调用工具；知识分区与隔离机制保持不变。
 
-## 7. 已验证项
+## 8. 已验证项
 
-- ✅ 路由：5 个域的典型问题均路由到正确 Agent
+- ✅ 路由：5 个域的典型问题均路由到正确 Agent（规则与 LLM 双路径）
 - ✅ 隔离：各分区业务数据键两两不相交、无交叉污染
 - ✅ 端到端：每个域均能返回答案 + 追问推荐
 - ✅ 多轮追问链：输入序号可"以此类推"持续深入

@@ -1,22 +1,28 @@
-"""LangGraph 编排层。
+"""LangGraph 编排层（LLM 增强版）。
 
-- Router 节点：基于关键词打分，把用户问题路由到 5 个 Agent 之一。
-- 每个 Agent 一个节点：调用该 Agent 的 dispatch（内部走 LangChain @tool 协议），
-  并基于匹配域生成"接下来可以问"的相关性问题。
-- StateGraph 有向图：router → 命中 Agent → END。
+路由与 Agent 执行分两级：
+- Router：优先用 LLM 做意图分类（结构化输出），解析失败或未配置 Key 时
+  自动降级到关键词打分。
+- Agent 节点：配置了 LLM 时用 create_react_agent 做「真 tool calling」
+  （LLM 决定调用哪个工具 → ToolNode 执行 → 生成最终回答）；未配置 Key 时
+  降级到确定性的 dispatch（内部仍走 LangChain @tool 协议）。
 
-架构符合 LangChain/LangGraph 原生范式：State 驱动 + 条件路由 + 工具协议。
-生产环境可将 Router 的规则打分替换为 LLM（如 ChatOpenAI）意图分类，
-本工程为可离线运行、确定性的演示实现。
+无论哪种模式，5 个 Agent 的知识库隔离、追问推荐机制都保持不变。
 """
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 
+from langchain.agents import create_agent
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableLambda
 from langgraph.graph import END, START, StateGraph
 
-from agents.agent_defs import _AGENT_ZONE_KEYWORDS, create_agents
+from agents.agent_defs import _AGENT_ZONE_KEYWORDS, _match, create_agents
+from llm import get_llm
+
+AgentId = Literal["faq", "product", "procurement", "supplier", "order"]
+AGENT_IDS: tuple[AgentId, ...] = ("faq", "product", "procurement", "supplier", "order")
 
 
 class SupplyState(TypedDict):
@@ -28,6 +34,9 @@ class SupplyState(TypedDict):
     history: list[tuple[str, str]]  # 历史问答（question, answer）
 
 
+# =========================================================
+# 路由：LLM 意图识别 + 关键词兜底
+# =========================================================
 # 高区分度强信号词：命中即直接路由，避免与弱关键词撞车
 STRONG_ROUTE = {
     "供应商": "supplier",
@@ -40,7 +49,7 @@ STRONG_ROUTE = {
 
 
 def route_question(question: str) -> str:
-    """路由：先查强信号词，再按关键词打分选最高分区。"""
+    """规则路由（兜底）：先查强信号词，再按关键词打分选最高分区。"""
     ql = question
     for kw, zone in STRONG_ROUTE.items():
         if kw in ql:
@@ -50,55 +59,110 @@ def route_question(question: str) -> str:
         score = sum(1 for kw in kws if kw in ql)
         scores[zone] = score
     best = max(scores, key=lambda z: scores[z])
-    # 无命中（全为 0）时落到客服 FAQ，并提供帮助引导
     return best if scores[best] > 0 else "faq"
 
 
-def make_router_node():
-    fn = RunnableLambda(lambda state: {"agent_name": route_question(state["question"])})
+def make_llm_router(llm):
+    """构造 LLM 意图识别路由；无 LLM 时退化为规则路由。"""
+    from pydantic import BaseModel, Field
+
+    class RouteIntent(BaseModel):
+        agent_id: AgentId = Field(
+            description="把用户问题归类到最合适的员工：faq=售前售后咨询, "
+                        "product=款式/价格/库存, procurement=采购制度, "
+                        "supplier=供应商, order=下单审批"
+        )
+
+    structured = llm.with_structured_output(RouteIntent) if llm else None
+
+    def llm_route(question: str) -> str:
+        if structured is None:
+            return route_question(question)
+        try:
+            intent = structured.invoke(question)
+            zone = intent.agent_id
+            return zone if zone in AGENT_IDS else route_question(question)
+        except Exception:  # noqa: BLE001 —— 解析失败/超时等一律降级
+            return route_question(question)
+
+    return llm_route
+
+
+def make_router_node(route_fn):
+    fn = RunnableLambda(lambda state: {"agent_name": route_fn(state["question"])})
+
     def router(state: SupplyState) -> dict[str, Any]:
         return fn.invoke(state)
+
     return router
 
 
-def make_agent_node(agent):
+# =========================================================
+# Agent 节点：LLM tool calling / 规则 dispatch 双模式
+# =========================================================
+def _extract_answer(messages: list[Any]) -> str:
+    """从 React 循环的消息里取最后的文本回答。"""
+    for msg in reversed(messages):
+        content = getattr(msg, "content", "")
+        if isinstance(content, str) and content.strip():
+            return content.strip()
+    if messages:
+        return str(getattr(messages[-1], "content", ""))
+    return "（无回复）"
+
+
+def make_agent_node(agent, react_app=None):
+    """react_app 为 None 时走规则 dispatch（无 Key 降级）。"""
     def node(state: SupplyState) -> dict[str, Any]:
-        res = agent.dispatch(state["question"])
-        suggestions = agent.suggest(res["matched_key"])
+        question = state["question"]
+        if react_app is not None:
+            result = react_app.invoke({"messages": [HumanMessage(content=question)]})
+            answer = _extract_answer(result.get("messages", []))
+            key = _match(question, agent.zone)
+        else:
+            res = agent.dispatch(question)
+            answer, key = res["answer"], res["matched_key"]
         return {
             "agent_name": agent.name,
-            "answer": res["answer"],
-            "matched_key": res["matched_key"],
-            "suggestions": suggestions,
+            "answer": answer,
+            "matched_key": key,
+            "suggestions": agent.suggest(key),
         }
     return node
 
 
 def build_graph():
-    """构建并编译完整 StateGraph。"""
+    """构建并编译完整 StateGraph（LLM 增强 + 无 Key 自动降级）。"""
     agents = create_agents()
+    llm = get_llm()
+    route_fn = make_llm_router(llm)
+
+    # 配置 Key 时，为每个 Agent 预建工具调用图（各自绑定自己的工具集）
+    react_apps: dict[str, Any] = {}
+    if llm is not None:
+        for zone, agent in agents.items():
+            react_apps[zone] = create_agent(llm, agent.tools)
 
     g = StateGraph(SupplyState)
-
-    g.add_node("router", make_router_node())
+    g.add_node("router", make_router_node(route_fn))
     for zone, agent in agents.items():
-        g.add_node(zone, make_agent_node(agent))
+        g.add_node(zone, make_agent_node(agent, react_apps.get(zone)))
 
     g.add_edge(START, "router")
     g.add_conditional_edges(
         "router",
         lambda state: state["agent_name"],
-        {zone: zone for zone in agents},  # agent_name=zone 时路由到对应节点
+        {zone: zone for zone in agents},
     )
     for zone in agents:
         g.add_edge(zone, END)
 
-    return g.compile(), agents
+    return g.compile(), agents, llm
 
 
 def run_query(question: str) -> dict[str, Any]:
     """对外入口：给定问题，返回回答与推荐问题。"""
-    app, _ = build_graph()
+    app, _, _ = build_graph()
     result = app.invoke(
         {"question": question, "history": []},
         config={"recursion_limit": 10},
