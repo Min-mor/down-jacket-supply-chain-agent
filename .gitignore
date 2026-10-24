@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .env
 c端问答界面/_shots/
+data/*.db
+data/*.db-*
+.pytest_cache/

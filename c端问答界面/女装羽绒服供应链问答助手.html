@@ -405,12 +405,36 @@ function ask(q){
   lastSuggest=[];
   $chips.innerHTML='';
   addMsg('user', route(q), q);
-  const zone=route(q);
-  const res=dispatch(zone,q);
-  lastSuggest=suggest(zone,res.key);
-  addMsg('agent', zone, res.answer, lastSuggest);
-  $input.value=''; autoGrow();
-  setActive(zone);
+  // 优先走后端 API（生产多 Agent 服务）；失败则降级到内置规则引擎（离线演示）
+  askViaAPI(q)
+    .then(data=>{
+      lastSuggest = data.suggestions || [];
+      const zone = AGENTS[data.agent] ? data.agent : 'faq';
+      addMsg('agent', zone, data.answer, lastSuggest);
+      setActive(zone);
+    })
+    .catch(()=>{
+      const zone=route(q);
+      const res=dispatch(zone,q);
+      lastSuggest=suggest(zone,res.key);
+      addMsg('agent', zone, res.answer + '（离线模式）', lastSuggest);
+      setActive(zone);
+    })
+    .finally(()=>{ $input.value=''; autoGrow(); });
+}
+/* 生产对接：调用后端 FastAPI /chat；会话 ID 存 localStorage */
+const API_BASE = (typeof window!=='undefined' && (window.AGENT_API_BASE||'http://localhost:8000/api/v1'));
+let sessionId = (typeof localStorage!=='undefined') ? localStorage.getItem('agent_session') : null;
+async function askViaAPI(q){
+  const r = await fetch(API_BASE + '/chat', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({question:q, session_id:sessionId})
+  });
+  if(!r.ok) throw new Error('api '+r.status);
+  const data = await r.json();
+  sessionId = data.session_id;
+  if(typeof localStorage!=='undefined') localStorage.setItem('agent_session', sessionId);
+  return data;
 }
 function setActive(zone){ document.querySelectorAll('.rail-agent').forEach(n=>n.classList.toggle('active',n.dataset.z===zone)); }
 

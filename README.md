@@ -141,3 +141,99 @@ pip install -r requirements.txt
 - ✅ 隔离：各分区业务数据键两两不相交、无交叉污染
 - ✅ 端到端：每个域均能返回答案 + 追问推荐
 - ✅ 多轮追问链：输入序号可"以此类推"持续深入
+
+---
+
+## 9. 生产级服务（FastAPI + 持久化 + 安全 + 评测 + 部署）
+
+工程已从"CLI + 单文件"升级为可部署的多 Agent 服务，C 端界面也已改接后端 API。
+
+### 9.1 新增目录
+
+```
+core/                  # 基础设施层
+├── config.py          #   pydantic-settings 统一配置（.env / 环境变量）
+├── logging.py         #   JSON Lines 结构化日志 + 每请求 request_id
+├── db.py              #   SQLAlchemy ORM：Conversation / Message，幂等建表
+└── memory.py          #   会话记忆：建会话 / 载历史 / 追加落库 / 组装 LLM 消息
+api/                   # 服务层
+├── main.py            #   FastAPI：/healthz /readyz /agents /chat
+├── schemas.py         #   ChatRequest / ChatResponse / AgentInfo / Health
+├── security.py        #   提示注入防护、输入校验、限流、CORS、网关令牌
+└── deps.py            #   应用级单例（graph/agents/llm 只建一次）
+eval/                  # 评测
+├── dataset.py         #   18 条评测用例（5 域覆盖 + 口语追问）
+└── run_eval.py        #   路由准确率 + 回答命中率报告
+Dockerfile / docker-compose.yml / .github/workflows/ci.yml
+tests/test_api.py      # FastAPI 集成测试
+```
+
+### 9.2 API 端点
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/healthz` | 存活探针（返回 `mode`：llm / rule） |
+| GET | `/readyz` | 就绪探针（含数据库连通检查） |
+| GET | `/api/v1/agents` | 员工（Agent）列表（配置 `API_TOKEN` 时需带 `X-API-Token`） |
+| POST | `/api/v1/chat` | 会话问答。`{question, session_id?}` → 多轮记忆 + 落库 + 追问推荐 |
+
+交互式文档：`/docs`（Swagger）。
+
+### 9.3 安全与稳健性
+
+- **提示注入防护**：启发式检测「忽略/无视/系统指令/扮演」等特征，命中返回 400（建议生产接护栏模型）。
+- **输入校验**：空输入 / 超长 / 不可打印字符清洗。
+- **限流**：单进程内存滑动窗口（默认 60 次/分/IP，按 `X-Forwarded-For` 取源 IP）。
+- **网关令牌**：设置 `API_TOKEN` 后 `/agents` 等需 `X-API-Token`。
+- **CORS**：按 `cors_origins` 白名单放行（C 端页面跨域调用）。
+- **可观测**：JSON 结构化日志，每次请求带 `request_id`，便于链路追踪。
+
+### 9.4 运行服务
+
+```bash
+# 本地开发
+uvicorn api.main:app --host 0.0.0.0 --port 8000
+
+# 生产推荐：多 worker + 生产环境配置
+ENV=prod uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 4
+```
+
+配置项见 `.env.example`（`DEEPSEEK_API_KEY`、`DATABASE_URL`、`API_TOKEN`、
+`RATE_LIMIT_PER_MINUTE`、`CORS_ORIGINS`、`ENV` 等）。
+
+### 9.5 Docker 部署
+
+```bash
+cp .env.example .env        # 填好配置
+docker compose up --build   # 起服务（含健康检查，数据挂载到 ./data）
+```
+
+### 9.6 CI（GitHub Actions）
+
+`.github/workflows/ci.yml`：push / PR 时自动跑 `pytest`（16 项）+ 评测（18 例），
+保证回归不破。
+
+### 9.7 评测与回归
+
+```bash
+python -m pytest -q          # 16 项单元 + 集成测试
+python -m eval.run_eval      # 评测：路由准确率 + 回答命中率
+```
+
+当前基线（rule 模式）：**路由准确率 100%（18/18）、回答命中率 100%（18/18）**。
+
+### 9.8 C 端界面对接后端
+
+`c端问答界面/女装羽绒服供应链问答助手.html` 现在默认调用后端
+`POST {API_BASE}/chat`（`API_BASE` 默认 `http://localhost:8000/api/v1`），
+会话 ID 存 `localStorage` 实现跨轮记忆；后端不可达时自动降级为内置规则引擎（离线演示）。
+
+### 9.9 上生产前的建议清单
+
+- [ ] 配置真实 `DEEPSEEK_API_KEY`，切到 LLM 模式并复跑评测
+- [ ] `DATABASE_URL` 换 Postgres（当前默认 SQLite 仅适合单机演示）
+- [ ] 限流迁移到 Redis（多实例共享），网关令牌交给正式鉴权
+- [ ] 提示注入防护接入专用护栏模型
+- [ ] 接入 LangSmith / Langfuse 做链路追踪与评测看板
+- [ ] 前端 API 地址通过部署环境注入（`window.AGENT_API_BASE`），并走 HTTPS
+

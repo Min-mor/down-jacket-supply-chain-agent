@@ -27,7 +27,8 @@ AGENT_IDS: tuple[AgentId, ...] = ("faq", "product", "procurement", "supplier", "
 
 class SupplyState(TypedDict):
     question: str        # 用户本轮问题
-    agent_name: str      # 命中的 Agent
+    agent_name: str      # 命中的 Agent 显示名
+    agent_id: str        # 命中的 Agent 分区 id（faq/product/...）
     answer: str          # 该 Agent 的回答
     matched_key: str     # 匹配到的知识域关键词
     suggestions: list[str]  # 推荐的相关性问题
@@ -115,8 +116,17 @@ def make_agent_node(agent, react_app=None):
     """react_app 为 None 时走规则 dispatch（无 Key 降级）。"""
     def node(state: SupplyState) -> dict[str, Any]:
         question = state["question"]
+        history = state.get("history") or []
         if react_app is not None:
-            result = react_app.invoke({"messages": [HumanMessage(content=question)]})
+            # 多轮上下文：历史 + 当前问题一起喂给 LLM 工具调用图
+            msgs = []
+            for q, a in history:
+                msgs.append(HumanMessage(content=q))
+                if a:
+                    from langchain_core.messages import AIMessage
+                    msgs.append(AIMessage(content=a))
+            msgs.append(HumanMessage(content=question))
+            result = react_app.invoke({"messages": msgs})
             answer = _extract_answer(result.get("messages", []))
             key = _match(question, agent.zone)
         else:
@@ -124,6 +134,7 @@ def make_agent_node(agent, react_app=None):
             answer, key = res["answer"], res["matched_key"]
         return {
             "agent_name": agent.name,
+            "agent_id": agent.zone,
             "answer": answer,
             "matched_key": key,
             "suggestions": agent.suggest(key),
